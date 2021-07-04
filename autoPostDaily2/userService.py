@@ -1,13 +1,12 @@
 import json
+import requests
 import error
 from netService import *
 
 
-# These classes must add attributes with _   !!!!
-
+# These three classes must add private attributes    !!!!
 class Information(object):
-    _certification_name = ""
-    _certification_password = ""
+
     realName = ""
     number = "0"
     uid = "0"
@@ -15,6 +14,7 @@ class Information(object):
     date = ""
     id = ""
     gwszdd = ""
+
 
 class Position(object):
     area = "北京市 海淀区"
@@ -54,6 +54,7 @@ class Position(object):
 
         return info_dict
 
+
 class Selection(object):
     sfzs = "1"
     bzxyy = ""
@@ -92,23 +93,26 @@ class Selection(object):
     move_remark = ""
 
 
+# This class is used for handle user
 class User(object):
-    information = Information()
-    position = Position()
-    selection = Selection()
-    net_session = None
-    login_url = "https://app.buaa.edu.cn/uc/wap/login/check"
+    def __init__(self, student_number, password):
+        self.information = Information()
+        self.position = Position()
+        self.selection = Selection()
+        self.student_number = student_number
+        self.password = password
+        self.net_session = requests.session()
 
     def generateUserPackage(self):
         information = self.information
         position = self.position
         selection = self.selection
         if isinstance(information, Information) and isinstance(position, Position) and isinstance(selection, Selection):
-            return self.generateUserDictUnprotected(information, position, selection)
+            return self.__generateUserDictUnprotected(information, position, selection)
         else:
             error.reportError(error.userDataError)
 
-    def generateUserDictUnprotected(self, information, position, selection):
+    def __generateUserDictUnprotected(self, information, position, selection):
         result = dict()
 
         for eachAttr in information.__dir__():
@@ -123,15 +127,94 @@ class User(object):
 
         return result
 
-    def oneKeyPost(self, name, password):
-        userGetSessionCookies(self)
-        self.information._certification_name = name
-        self.information._certification_password = password
-        userLogIn(self)
-        userGetConfig(self)
-        userGenerateTimeStamp(self)
-        user_package = self.generateUserPackage()
-        userPostForm(self, user_package)
+    def oneKeyPost(self):
+        self.init()
+        if self.isPosted() is False:
+            self.generateTimeStamp(self)
+            user_package = self.generateUserPackage()
+            self.postPackage(self, user_package)
+
+    def init(self):
+        self.__getSessionCookies()
+        self.__logIn()
+        self.__getConfig()
+
+    def __getSessionCookies(self):
+        try:
+            url1 = "https://app.buaa.edu.cn/site/buaaStudentNcov/index"
+            self.net_session.get(url1, headers=headers)
+            url3 = "https://app.buaa.edu.cn/wap/setting/info"
+            self.net_session.get(url3, headers=headers)
+            url2 = "https://app.buaa.edu.cn/buaaxsncov/wap/default/get-info"
+            self.net_session.get(url2, headers=headers)
+
+        except:
+            error.reportError(error.netGetError)
+
+    def __logIn(self):
+        if self.student_number == "" or self.password == "":
+            error.reportError(error.noLoginUrlError)
+            return 0
+        else:
+            log_information = dict()
+            log_information["username"] = self.student_number
+            log_information["password"] = self.password
+            url = "https://app.buaa.edu.cn/uc/wap/login/check"
+            respond = self.net_session.post(url, headers=headers, data=log_information)
+            if isSuccessRespond(respond) == FAIL:
+                error.reportError(error.netRespondError)
+            pass
+
+    def __getConfig(self):
+        try:
+            url = "https://app.buaa.edu.cn/buaaxsncov/wap/default/get-info"
+            respond = self.net_session.get(url, headers=headers)
+            if isSuccessRespond(respond) == FAIL:
+                error.reportError(error.netRespondError)
+                return
+            else:
+                all_status = json.loads(respond.content.decode("utf-8"))
+                session_info = all_status["d"]["info"]
+                user_info = all_status["d"]["uinfo"]
+
+                self.information.realName = str(user_info["realname"])
+                self.information.uid = str(user_info["uid"])
+                self.information.number = str(user_info["role"]["number"])
+                self.information.date = str(session_info["date"])
+                self.information.id = str(session_info["id"])
+
+        except:
+            error.reportError(error.netRespondError)
+            return
+
+    def generateTimeStamp(self):
+        self.information.created = str(int(time.time()))
+
+    def postPackage(self, userPackage):
+        try:
+            session = self.net_session
+            url = "https://app.buaa.edu.cn/buaaxsncov/wap/default/save"
+            respond = session.post(url, data=userPackage, headers=headers)
+            # print(respond)
+            if isSuccessRespond(respond) is FAIL:
+                error.reportError(error.netRespondError)
+        except:
+            error.reportError(error.netPostError)
+
+    def isPosted(self):
+        try:
+            url = "https://app.buaa.edu.cn/buaaxsncov/wap/default/get-info"
+            respond = self.net_session.get(url, headers=headers)
+            if isSuccessRespond(respond) == FAIL:
+                error.reportError(error.netRespondError)
+                return
+            else:
+                all_status = json.loads(respond.content.decode("utf-8"))
+                return all_status['d']['hasFlag']
+        except:
+            error.reportError(error.netRespondError)
+            return
+
 
 
 

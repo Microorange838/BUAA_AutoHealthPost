@@ -1,4 +1,4 @@
-class GError(object):
+class GError(Exception):
     errorLevel = 0
     context = ""
 
