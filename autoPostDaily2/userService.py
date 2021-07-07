@@ -130,9 +130,10 @@ class User(object):
     def oneKeyPost(self):
         self.init()
         if self.isPosted() is False:
-            self.generateTimeStamp(self)
+            print("Try to post for {}".format(self.student_number))
+            self.generateTimeStamp()
             user_package = self.generateUserPackage()
-            self.postPackage(self, user_package)
+            self.postPackage(user_package)
 
     def init(self):
         self.__getSessionCookies()
